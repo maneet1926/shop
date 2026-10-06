@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gift Shop Mystery Scratch Card</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        .top-heading {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            color: #ffffff;
+            width: 100%;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #b87333 0%, #990000 30%, #e34242 50%, #990000 70%, #b87333 100%);
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 16px;
+        }
+
+        .card-container {
+            background: #b87333;
+            padding: 28px 20px;
+            border-radius: 30px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+            text-align: center;
+            max-width: 340px;
+            width: 100%;
+            margin-top:220px;
+        }
+
+        h2 {
+            font-size: 2.25rem;
+            margin-bottom: 6px;
+            color: #990000;
+        }
+
+        .a1 {
+            font-size: 0.9rem;
+            color: #990000;
+            margin-bottom: 20px;
+        }
+
+        .scratch-wrapper {
+            position: relative;
+            width: 270px;
+            height: 150px;
+            margin: 0 auto;
+            border-radius: 14px;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .reward-box {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #990000;
+            border: 2px dashed #5c1d24;
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .reward-value {
+            font-size: 2.4rem;
+            font-weight: 800;
+            color: #b87333;
+        }
+
+        .reward-label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #b87333;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: pointer;
+            touch-action: none;
+        }
+
+        .instruction {
+            margin-top: 14px;
+            font-size: 0.85rem;
+            color: #888;
+        }
+
+        .notice {
+            margin-top: 18px;
+            font-size: 0.75rem;
+            color: #aaa;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="top-heading">
+        <h1 style="font-size:24px; margin: 0; font-weight: 500;">Welcome to</h1>
+        <h1 style="font-size:48px; margin: 5px 0; font-weight: 800;">Bless & Beyond</h1>
+        <h1 style="font-size:24px; margin: 0; font-weight: 500;">gift collection</h1>
+    </div>
+
+    <div class="card-container">
+        <h2>Lucky Scratch</h2>
+        <p class="a1">Scratch the coupon below with your finger to reveal your discount!</p>
+
+        <div class="scratch-wrapper">
+            <div class="reward-box">
+                <div class="reward-value" id="rewardText">--</div>
+                <div class="reward-label">Off Your Purchase</div>
+            </div>
+            <canvas id="scratchCanvas" width="270" height="150"></canvas>
+        </div>
+        <div class="a1">Only one scratch card per customer is valid !</div>
+    </div>
+
+    <script>
+        // --- Weighted Odds Algorithm ---
+        // 87% chance: Under 6% (5%, 4%, or 3%)
+        // 13% chance (~1-2 in 50-60): 8% or 9%
+        // 0% chance: Above 10%
+        function pickDiscount() {
+            const roll = Math.random() * 100; // Roll from 0.00 to 99.99
+
+            if (roll < 10) {
+                return "5%";       // 45% chance
+            } else if (roll < 80) {
+                return "4%";      // 35% chance
+            } else if (roll < 97) {
+                return "3%";      // 17% chance
+            } else if (roll < 99) {
+                return "8%";      // 2% chance (~1 in 50)
+            } else {
+                return "9%";      // 1% chance (~1 in 100)
+            }
+        }
+
+        // --- Local Phone Memory ---
+        // Saves to the customer's phone so refreshing won't re-roll a higher discount
+        let userDiscount = localStorage.getItem("shop_discount_value");
+        if (!userDiscount) {
+            userDiscount = pickDiscount();
+            localStorage.setItem("shop_discount_value", userDiscount);
+        }
+
+        document.getElementById("rewardText").innerText = userDiscount;
+
+        // --- Scratch Canvas Setup ---
+        const canvas = document.getElementById("scratchCanvas");
+        const ctx = canvas.getContext("2d");
+
+        function drawFoil() {
+            // Silver foil background
+            ctx.fillStyle = "#cfcfcf";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Label on top of foil
+            ctx.font = "bold 15px -apple-system, sans-serif";
+            ctx.fillStyle = "#555555";
+            ctx.textAlign = "center";
+            ctx.fillText("SCRATCH WITH FINGER", canvas.width / 2, canvas.height / 2 + 5);
+        }
+        drawFoil();
+
+        // --- Scratch Action ---
+        let isDrawing = false;
+
+        function getCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function scratch(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const { x, y } = getCoords(e);
+
+            // 'destination-out' erases pixels to show the reward underneath
+            ctx.globalCompositeOperation = "destination-out";
+            ctx.beginPath();
+            ctx.arc(x, y, 20, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        // Touch support (Mobile)
+        canvas.addEventListener("touchstart", (e) => { isDrawing = true; scratch(e); }, { passive: false });
+        window.addEventListener("touchend", () => { isDrawing = false; });
+        canvas.addEventListener("touchmove", scratch, { passive: false });
+
+        // Mouse support (Desktop / Laptop testing)
+        canvas.addEventListener("mousedown", (e) => { isDrawing = true; scratch(e); });
+        window.addEventListener("mouseup", () => { isDrawing = false; });
+        canvas.addEventListener("mousemove", scratch);
+    </script>
+    <footer style="margin-top:100px; font-size: 12px; color: #999;"><p>© 2026 all right reserved to Maneet Yadav</p></footer>
+</body>
+
+</html>
